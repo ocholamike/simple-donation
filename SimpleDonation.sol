@@ -7,35 +7,56 @@ contract SimpleDonation {
 
     struct Donor {
         string name;
-        uint amount;
+        uint totalAmount;
+        uint donationCount;
     }
 
     mapping(address => Donor) public donors;
 
-    event DonationReceived(address donor, string name, uint amount);
-    event FundsWithdrawn(address owner, uint amount);
+    event DonationReceived(address indexed donor, string name, uint amount);
+    event FundsWithdrawn(address indexed receiver, uint amount);
 
     constructor() {
         owner = msg.sender;
     }
 
-    function donate(string memory _name) public payable {
-        require(msg.value > 0, "Please send some Ether to donate");
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Access denied: only owner allowed");
+        _;
+    }
 
-        donors[msg.sender] = Donor(_name, msg.value);
+
+    function donate(string calldata _name) external payable {
+        require(msg.value > 0, "Donation must be greater than zero");
+
+        Donor storage donor = donors[msg.sender];
+        donor.name = _name;
+        donor.totalAmount += msg.value;
+        donor.donationCount += 1;
+
         totalDonations += msg.value;
 
         emit DonationReceived(msg.sender, _name, msg.value);
     }
 
-    function getContractBalance() public view returns (uint) {
+    function getContractBalance() external view returns (uint) {
         return address(this).balance;
     }
 
-    function withdrawFunds() public {
-        require(msg.sender == owner, "Only the onwer can withdraw");
+    function withdrawAllFunds() external onlyOwner {
         uint amount = address(this).balance;
+        require(amount > 0, "No funds available to withdraw");
+
         payable(owner).transfer(amount);
         emit FundsWithdrawn(owner, amount);
     }
- }
+
+    function withdrawTo(address payable _to) external onlyOwner {
+        require(_to != address(0), "Invalid address");
+        uint amount = address(this).balance;
+        require(amount > 0, "No funds to withdraw");
+
+        _to.transfer(amount);
+        emit FundsWithdrawn(_to, amount);
+    }
+}
